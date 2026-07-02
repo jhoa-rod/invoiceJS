@@ -1,6 +1,7 @@
 import type { Invoice } from "../../types/invoice";
 import { useInvoiceI18n } from "../../i18n/invoiceI18n";
 import { calculateTotals, formatCurrency, formatInvoiceDate } from "../../utils/invoiceMath";
+import { getInvoiceCurrencySymbol, getInvoiceDateFormat, getInvoiceTaxIdLabel, getInvoiceTaxLabel } from "../../utils/invoiceRegion";
 
 interface InvoicePreviewProps {
   invoice: Invoice;
@@ -43,6 +44,10 @@ export function InvoicePreview({
 }: InvoicePreviewProps) {
   const { t } = useInvoiceI18n();
   const totals = calculateTotals(invoice);
+  const currencySymbol = getInvoiceCurrencySymbol(invoice);
+  const dateFormat = getInvoiceDateFormat(invoice);
+  const taxLabel = getInvoiceTaxLabel(invoice);
+  const taxIdLabel = getInvoiceTaxIdLabel(invoice);
   const statusLabel =
     invoice.status === "borrador" ? t("draftStatus") : invoice.status === "enviada" ? t("sentStatus") : t("paidStatus");
 
@@ -62,12 +67,18 @@ export function InvoicePreview({
       ) : null}
 
       <article className="invoice-sheet mx-auto w-full max-w-4xl rounded-lg border border-app-border-subtle bg-white p-5 shadow-sm sm:p-8">
+        <div className="invoice-print-band -mx-5 -mt-5 mb-5 rounded-t-lg bg-brand px-5 py-4 text-xl font-black uppercase tracking-wide text-white sm:-mx-8 sm:-mt-8 sm:mb-6 sm:px-8">
+          INVOICE
+        </div>
         <header className="grid gap-6 border-b-2 border-app-strong pb-5 sm:grid-cols-[1fr_auto]">
           <div>
             <h1 className="text-3xl font-black text-app-text sm:text-4xl">{t("invoice").toUpperCase()}</h1>
             <div className="mt-5 text-sm leading-6 text-app-text">
               <p className="font-bold text-app-text">{invoice.issuer.name}</p>
-              <p>{invoice.issuer.taxId}</p>
+              <p>
+                <span className="font-semibold text-app-muted">{taxIdLabel}: </span>
+                {invoice.issuer.taxId}
+              </p>
               <p>{invoice.issuer.address}</p>
               <p>{invoice.issuer.cityPostal}</p>
               {invoice.issuer.email ? <p>{invoice.issuer.email}</p> : null}
@@ -81,7 +92,7 @@ export function InvoicePreview({
             </div>
             <div>
               <dt className="font-semibold text-app-muted">{t("date")}</dt>
-              <dd className="font-bold text-app-text">{formatInvoiceDate(invoice.date)}</dd>
+              <dd className="font-bold text-app-text">{formatInvoiceDate(invoice.date, dateFormat)}</dd>
             </div>
             <div>
               <dt className="font-semibold text-app-muted">{t("status")}</dt>
@@ -94,7 +105,10 @@ export function InvoicePreview({
           <div>
             <p className="mb-2 text-xs font-bold uppercase text-app-muted">{t("client")}</p>
             <p className="font-bold text-app-text">{invoice.client.name}</p>
-            <p>{invoice.client.taxId}</p>
+            <p>
+              <span className="font-semibold text-app-muted">{taxIdLabel}: </span>
+              {invoice.client.taxId}
+            </p>
             <p>{invoice.client.address}</p>
             <p>{invoice.client.cityPostal}</p>
           </div>
@@ -128,7 +142,7 @@ export function InvoicePreview({
                   <td className="border border-app-border px-3 py-2 text-app-text">{line.dates}</td>
                   <td className="border border-app-border px-3 py-2 text-right text-app-text">{line.hours}</td>
                   <td className="border border-app-border px-3 py-2 text-right font-semibold text-app-text">
-                    {formatCurrency(line.amount)}
+                    {formatCurrency(line.amount, currencySymbol)}
                   </td>
                 </tr>
               ))}
@@ -139,17 +153,17 @@ export function InvoicePreview({
         <section className="ml-auto mt-6 w-full max-w-sm overflow-hidden rounded-md border border-app-border text-sm">
           <div className="flex items-center justify-between border-b border-app-border-subtle px-4 py-3">
             <span className="font-semibold text-app-muted">{t("grossTotal")}</span>
-            <strong className="text-app-text">{formatCurrency(totals.totalBruto)}</strong>
+            <strong className="text-app-text">{formatCurrency(totals.totalBruto, currencySymbol)}</strong>
           </div>
           <div className="flex items-center justify-between border-b border-app-border-subtle px-4 py-3">
             <span className="font-semibold text-app-muted">
-              {t("irpf")} {invoice.irpfRate}%
+              {taxLabel} {invoice.irpfRate}%
             </span>
-            <strong className="text-app-text">{formatCurrency(totals.irpf)}</strong>
+            <strong className="text-app-text">{formatCurrency(totals.irpf, currencySymbol)}</strong>
           </div>
           <div className="flex items-center justify-between bg-app-strong px-4 py-3 text-white">
             <span className="font-bold">{t("netTotal")}</span>
-            <strong>{formatCurrency(totals.totalNeto)}</strong>
+            <strong>{formatCurrency(totals.totalNeto, currencySymbol)}</strong>
           </div>
         </section>
       </article>

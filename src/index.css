@@ -42,15 +42,21 @@
 }
 
 @media print {
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   body {
-    background: #ffffff;
+    background: #ffffff !important;
   }
 
   .no-print,
-  header:not(.invoice-print-header),
   nav,
   button,
-  input[readonly] {
+  input,
+  select,
+  textarea {
     display: none !important;
   }
 
@@ -60,7 +66,22 @@
 
   .invoice-sheet {
     max-width: none !important;
-    border: 0 !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
+  }
+
+  .invoice-print-band {
+    background: #75638f !important;
+    color: #ffffff !important;
+  }
+
+  .bg-app-soft {
+    background: var(--color-soft) !important;
+  }
+
+  .bg-app-strong {
+    background: var(--color-strong) !important;
+    color: #ffffff !important;
   }
 }

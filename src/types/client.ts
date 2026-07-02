@@ -10,3 +10,15 @@ export interface Client {
   updatedAt: string;
   userId?: string;
 }
+
+export interface InvoiceClient {
+  id: string;
+  userId: string;
+  name: string;
+  taxId: string;
+  address: string;
+  cityPostal: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}

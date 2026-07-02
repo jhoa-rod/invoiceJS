@@ -1,4 +1,5 @@
 export type InvoiceStatus = "borrador" | "enviada" | "pagada";
+export type InvoiceRegion = "spain" | "eu" | "us" | "latam" | "international";
 
 export interface InvoiceParty {
   name: string;
@@ -7,6 +8,8 @@ export interface InvoiceParty {
   cityPostal: string;
   email?: string;
   iban?: string;
+  region?: InvoiceRegion;
+  currencySymbol?: string;
 }
 
 export interface ServiceLine {

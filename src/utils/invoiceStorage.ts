@@ -1,6 +1,7 @@
 import { sampleInvoices } from "../data/sampleInvoices";
 import { supabase } from "../lib/supabase";
 import type { Invoice, InvoiceParty, InvoiceStatus, ServiceLine } from "../types/invoice";
+import { normalizeIssuerRegion } from "./invoiceRegion";
 
 interface InvoiceRow {
   id: string;
@@ -42,6 +43,8 @@ const emptyParty: InvoiceParty = {
   cityPostal: "",
   email: "",
   iban: "",
+  region: "spain",
+  currencySymbol: "€",
 };
 
 export const createEmptyInvoice = (issuer?: InvoiceParty): Invoice => {
@@ -54,7 +57,7 @@ export const createEmptyInvoice = (issuer?: InvoiceParty): Invoice => {
     period: "",
     irpfRate: 15,
     status: "borrador",
-    issuer: issuer ? { ...issuer } : { ...emptyParty },
+    issuer: issuer ? normalizeIssuerRegion({ ...emptyParty, ...issuer }) : { ...emptyParty },
     client: { ...emptyParty },
     lines: [createEmptyLine()],
     createdAt: now,
@@ -77,7 +80,7 @@ const normalizeInvoice = (invoice: Invoice): Invoice => ({
   period: invoice.period ?? "",
   irpfRate: Number.isFinite(Number(invoice.irpfRate)) ? Number(invoice.irpfRate) : 15,
   status: invoice.status || "borrador",
-  issuer: { ...emptyParty, ...invoice.issuer },
+  issuer: normalizeIssuerRegion({ ...emptyParty, ...invoice.issuer }),
   client: { ...emptyParty, ...invoice.client },
   lines: invoice.lines?.length
     ? invoice.lines.map((line) => ({

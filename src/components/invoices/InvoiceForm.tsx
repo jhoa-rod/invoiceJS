@@ -1,7 +1,16 @@
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import type { InvoiceClient } from "../../types/client";
 import type { Invoice, InvoiceParty, InvoiceStatus, ServiceLine } from "../../types/invoice";
 import { useInvoiceI18n } from "../../i18n/invoiceI18n";
 import { calculateTotals, formatCurrency, parseNumberInput } from "../../utils/invoiceMath";
+import {
+  getInvoiceCurrencySymbol,
+  getInvoiceRegionConfig,
+  getInvoiceTaxIdLabel,
+  getInvoiceTaxLabel,
+  invoiceRegionConfigs,
+  invoiceRegionOptions,
+} from "../../utils/invoiceRegion";
 import { createEmptyLine } from "../../utils/invoiceStorage";
 
 export type InvoiceErrors = Record<string, string>;
@@ -10,9 +19,11 @@ interface InvoiceFormProps {
   invoice: Invoice;
   errors: InvoiceErrors;
   mode: "create" | "edit";
+  clients?: InvoiceClient[];
   onChange: (invoice: Invoice) => void;
   onSubmit: (invoice: Invoice) => void;
   onCancel: () => void;
+  onSaveClient?: (client: InvoiceParty) => void | Promise<void>;
 }
 
 const inputClass =
@@ -38,9 +49,22 @@ function Field({
   );
 }
 
-export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCancel }: InvoiceFormProps) {
+export function InvoiceForm({
+  invoice,
+  errors,
+  mode,
+  clients = [],
+  onChange,
+  onSubmit,
+  onCancel,
+  onSaveClient,
+}: InvoiceFormProps) {
   const { t } = useInvoiceI18n();
   const totals = calculateTotals(invoice);
+  const regionConfig = getInvoiceRegionConfig(invoice.issuer);
+  const taxLabel = getInvoiceTaxLabel(invoice);
+  const taxIdLabel = getInvoiceTaxIdLabel(invoice);
+  const currencySymbol = getInvoiceCurrencySymbol(invoice);
 
   const updateInvoice = (patch: Partial<Invoice>) => onChange({ ...invoice, ...patch });
 
@@ -48,8 +72,37 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
     onChange({ ...invoice, issuer: { ...invoice.issuer, [field]: value } });
   };
 
+  const updateRegion = (region: InvoiceParty["region"]) => {
+    if (!region) return;
+    const nextConfig = invoiceRegionConfigs[region];
+    onChange({
+      ...invoice,
+      issuer: {
+        ...invoice.issuer,
+        region,
+        currencySymbol: nextConfig.currencyEditable ? invoice.issuer.currencySymbol ?? "" : nextConfig.defaultCurrencySymbol,
+      },
+    });
+  };
+
   const updateClient = (field: keyof InvoiceParty, value: string) => {
     onChange({ ...invoice, client: { ...invoice.client, [field]: value } });
+  };
+
+  const applySavedClient = (clientId: string) => {
+    const savedClient = clients.find((client) => client.id === clientId);
+    if (!savedClient) return;
+    onChange({
+      ...invoice,
+      client: {
+        ...invoice.client,
+        name: savedClient.name,
+        taxId: savedClient.taxId,
+        address: savedClient.address,
+        cityPostal: savedClient.cityPostal,
+        email: savedClient.email,
+      },
+    });
   };
 
   const updateLine = (lineId: string, patch: Partial<ServiceLine>) => {
@@ -106,7 +159,7 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
 
       <section className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
         <h3 className="text-base font-bold text-app-text">{t("invoiceData")}</h3>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Field label={t("invoiceNumber")} error={errors.invoiceNumber}>
             <input
               className={inputClass}
@@ -124,7 +177,7 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
               aria-invalid={Boolean(errors.date)}
             />
           </Field>
-          <Field label={t("irpfPercent")} error={errors.irpfRate}>
+          <Field label={`${taxLabel} (%)`} error={errors.irpfRate}>
             <input
               className={inputClass}
               type="number"
@@ -147,6 +200,26 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
               <option value="pagada">{t("paidStatus")}</option>
             </select>
           </Field>
+          <Field label={t("billingRegion")}>
+            <select className={inputClass} value={regionConfig.id} onChange={(event) => updateRegion(event.target.value as InvoiceParty["region"])}>
+              {invoiceRegionOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {t(option.labelKey)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Field label={t("currencySymbol")}>
+            <input
+              className={inputClass}
+              value={invoice.issuer.currencySymbol ?? currencySymbol}
+              onChange={(event) => updateIssuer("currencySymbol", event.target.value)}
+              disabled={!regionConfig.currencyEditable}
+              placeholder={regionConfig.currencyEditable ? "$" : regionConfig.defaultCurrencySymbol}
+            />
+          </Field>
         </div>
         <div className="mt-4">
           <Field label={t("period")}>
@@ -166,7 +239,7 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
             <Field label={t("fullName")}>
               <input className={inputClass} value={invoice.issuer.name} onChange={(event) => updateIssuer("name", event.target.value)} />
             </Field>
-            <Field label={t("taxNumber")}>
+            <Field label={taxIdLabel}>
               <input className={inputClass} value={invoice.issuer.taxId} onChange={(event) => updateIssuer("taxId", event.target.value)} />
             </Field>
             <Field label={t("address")}>
@@ -189,8 +262,34 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
         </div>
 
         <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
-          <h3 className="text-base font-bold text-app-text">{t("clientData")}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-bold text-app-text">{t("clientData")}</h3>
+            {onSaveClient ? (
+              <button
+                type="button"
+                onClick={() => void onSaveClient(invoice.client)}
+                disabled={!invoice.client.name.trim()}
+                className="min-h-9 rounded-md border border-app-border bg-white px-3 py-1.5 text-xs font-bold text-app-text transition hover:border-app-accent hover:bg-app-bg disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("saveAsClient")}
+              </button>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {clients.length > 0 ? (
+              <div className="sm:col-span-2">
+                <Field label={t("savedClient")}>
+                  <select className={inputClass} value="" onChange={(event) => applySavedClient(event.target.value)}>
+                    <option value="">{t("selectSavedClient")}</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
             <Field label={t("clientName")} error={errors.clientName}>
               <input
                 className={inputClass}
@@ -199,7 +298,7 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
                 aria-invalid={Boolean(errors.clientName)}
               />
             </Field>
-            <Field label={t("taxId")}>
+            <Field label={taxIdLabel}>
               <input className={inputClass} value={invoice.client.taxId} onChange={(event) => updateClient("taxId", event.target.value)} />
             </Field>
             <Field label={t("address")}>
@@ -292,17 +391,17 @@ export function InvoiceForm({ invoice, errors, mode, onChange, onSubmit, onCance
       <section className="grid gap-3 rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm sm:grid-cols-3">
         <div>
           <p className="text-xs font-bold uppercase text-app-muted">{t("grossTotal")}</p>
-          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.totalBruto)}</p>
+          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.totalBruto, currencySymbol)}</p>
         </div>
         <div>
           <p className="text-xs font-bold uppercase text-app-muted">
-            {t("irpf")} {Number.isFinite(invoice.irpfRate) ? invoice.irpfRate : 0}%
+            {taxLabel} {Number.isFinite(invoice.irpfRate) ? invoice.irpfRate : 0}%
           </p>
-          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.irpf)}</p>
+          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.irpf, currencySymbol)}</p>
         </div>
         <div>
           <p className="text-xs font-bold uppercase text-app-muted">{t("netTotal")}</p>
-          <p className="mt-1 text-2xl font-black text-app-positive">{formatCurrency(totals.totalNeto)}</p>
+          <p className="mt-1 text-2xl font-black text-app-positive">{formatCurrency(totals.totalNeto, currencySymbol)}</p>
         </div>
       </section>
     </form>

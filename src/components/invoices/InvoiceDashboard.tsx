@@ -1,6 +1,7 @@
 import type { Invoice } from "../../types/invoice";
 import { useInvoiceI18n } from "../../i18n/invoiceI18n";
 import { calculateTotals, formatCurrency, formatInvoiceDate } from "../../utils/invoiceMath";
+import { getInvoiceCurrencySymbol, getInvoiceDateFormat } from "../../utils/invoiceRegion";
 
 interface InvoiceDashboardProps {
   invoices: Invoice[];
@@ -31,6 +32,7 @@ export function InvoiceDashboard({ invoices, onCreate, onOpenArchive, onPreview 
   const latestInvoices = [...invoices]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
+  const summaryCurrencySymbol = invoices[0] ? getInvoiceCurrencySymbol(invoices[0]) : "€";
   const statusLabels = [
     { status: "borrador", label: t("drafts") },
     { status: "enviada", label: t("sent") },
@@ -69,15 +71,15 @@ export function InvoiceDashboard({ invoices, onCreate, onOpenArchive, onPreview 
         </div>
         <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase text-app-muted">{t("grossTotal")}</p>
-          <p className="mt-2 text-3xl font-black text-app-text">{formatCurrency(totals.bruto)}</p>
+          <p className="mt-2 text-3xl font-black text-app-text">{formatCurrency(totals.bruto, summaryCurrencySymbol)}</p>
         </div>
         <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase text-app-muted">{t("irpf")}</p>
-          <p className="mt-2 text-3xl font-black text-app-text">{formatCurrency(totals.irpf)}</p>
+          <p className="text-xs font-bold uppercase text-app-muted">{t("tax")}</p>
+          <p className="mt-2 text-3xl font-black text-app-text">{formatCurrency(totals.irpf, summaryCurrencySymbol)}</p>
         </div>
         <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase text-app-muted">{t("netTotal")}</p>
-          <p className="mt-2 text-3xl font-black text-app-positive">{formatCurrency(totals.neto)}</p>
+          <p className="mt-2 text-3xl font-black text-app-positive">{formatCurrency(totals.neto, summaryCurrencySymbol)}</p>
         </div>
       </section>
 
@@ -99,6 +101,7 @@ export function InvoiceDashboard({ invoices, onCreate, onOpenArchive, onPreview 
           <div className="mt-4 grid gap-2">
             {latestInvoices.map((invoice) => {
               const invoiceTotals = calculateTotals(invoice);
+              const invoiceCurrencySymbol = getInvoiceCurrencySymbol(invoice);
               return (
                 <button
                   key={invoice.id}
@@ -111,8 +114,8 @@ export function InvoiceDashboard({ invoices, onCreate, onOpenArchive, onPreview 
                     <span className="block text-sm text-app-muted">{invoice.client.name}</span>
                   </span>
                   <span className="text-sm font-semibold text-app-muted sm:text-right">
-                    {formatInvoiceDate(invoice.date)}
-                    <span className="block text-app-text">{formatCurrency(invoiceTotals.totalNeto)}</span>
+                    {formatInvoiceDate(invoice.date, getInvoiceDateFormat(invoice))}
+                    <span className="block text-app-text">{formatCurrency(invoiceTotals.totalNeto, invoiceCurrencySymbol)}</span>
                   </span>
                 </button>
               );

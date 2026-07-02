@@ -16,6 +16,8 @@ export const sampleInvoices: Invoice[] = [
       cityPostal: "08008 Barcelona",
       email: "facturacion@profesional.example",
       iban: "ES12 2100 0418 4502 0005 1332",
+      region: "spain",
+      currencySymbol: "€",
     },
     client: {
       name: "Domingo Asistencia SLU",

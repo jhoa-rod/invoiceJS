@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { Invoice } from "../../types/invoice";
 import { formatMessage, useInvoiceI18n } from "../../i18n/invoiceI18n";
 import { calculateTotals, formatCurrency, formatInvoiceDate } from "../../utils/invoiceMath";
+import { getInvoiceCurrencySymbol, getInvoiceDateFormat } from "../../utils/invoiceRegion";
 
 interface InvoiceArchiveProps {
   invoices: Invoice[];
@@ -46,7 +47,7 @@ export function InvoiceArchive({
           invoice.invoiceNumber,
           invoice.client.name,
           invoice.client.taxId,
-          formatInvoiceDate(invoice.date),
+          formatInvoiceDate(invoice.date, getInvoiceDateFormat(invoice)),
           invoice.date,
         ]
           .join(" ")
@@ -128,7 +129,7 @@ export function InvoiceArchive({
                 <th className="border-b border-app-border px-4 py-3">{t("client")}</th>
                 <th className="border-b border-app-border px-4 py-3">{t("date")}</th>
                 <th className="border-b border-app-border px-4 py-3 text-right">{t("grossTotal")}</th>
-                <th className="border-b border-app-border px-4 py-3 text-right">{t("irpf")}</th>
+                <th className="border-b border-app-border px-4 py-3 text-right">{t("tax")}</th>
                 <th className="border-b border-app-border px-4 py-3 text-right">{t("netTotal")}</th>
                 <th className="border-b border-app-border px-4 py-3">{t("status")}</th>
                 <th className="border-b border-app-border px-4 py-3">{t("actions")}</th>
@@ -137,6 +138,8 @@ export function InvoiceArchive({
             <tbody>
               {filteredInvoices.map((invoice) => {
                 const totals = calculateTotals(invoice);
+                const currencySymbol = getInvoiceCurrencySymbol(invoice);
+                const dateFormat = getInvoiceDateFormat(invoice);
                 return (
                   <tr key={invoice.id} className="align-top hover:bg-app-bg">
                     <td className="border-b border-app-border-subtle px-4 py-3 font-bold text-app-text">{invoice.invoiceNumber}</td>
@@ -144,11 +147,15 @@ export function InvoiceArchive({
                       <span className="block font-semibold text-app-text">{invoice.client.name}</span>
                       <span className="text-xs text-app-muted">{invoice.client.taxId}</span>
                     </td>
-                    <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{formatInvoiceDate(invoice.date)}</td>
-                    <td className="border-b border-app-border-subtle px-4 py-3 text-right font-semibold">{formatCurrency(totals.totalBruto)}</td>
-                    <td className="border-b border-app-border-subtle px-4 py-3 text-right font-semibold">{formatCurrency(totals.irpf)}</td>
+                    <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{formatInvoiceDate(invoice.date, dateFormat)}</td>
+                    <td className="border-b border-app-border-subtle px-4 py-3 text-right font-semibold">
+                      {formatCurrency(totals.totalBruto, currencySymbol)}
+                    </td>
+                    <td className="border-b border-app-border-subtle px-4 py-3 text-right font-semibold">
+                      {formatCurrency(totals.irpf, currencySymbol)}
+                    </td>
                     <td className="border-b border-app-border-subtle px-4 py-3 text-right font-bold text-app-positive">
-                      {formatCurrency(totals.totalNeto)}
+                      {formatCurrency(totals.totalNeto, currencySymbol)}
                     </td>
                     <td className="border-b border-app-border-subtle px-4 py-3">
                       <span className="rounded-md border border-app-border bg-app-bg px-2 py-1 text-xs font-bold capitalize text-app-text">

@@ -1,11 +1,13 @@
 import type { Invoice, InvoiceTotals } from "../types/invoice";
+import type { InvoiceDateFormat } from "./invoiceRegion";
 
-export const formatCurrency = (value: number) => {
+export const formatCurrency = (value: number, currencySymbol = "€") => {
   const safeValue = Number.isFinite(value) ? value : 0;
   const sign = safeValue < 0 ? "-" : "";
   const [integerPart, decimalPart] = Math.abs(safeValue).toFixed(2).split(".");
   const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sign}${groupedInteger},${decimalPart} €`;
+  const symbol = currencySymbol.trim();
+  return `${sign}${groupedInteger},${decimalPart}${symbol ? ` ${symbol}` : ""}`;
 };
 
 export const calculateTotals = (invoice: Pick<Invoice, "lines" | "irpfRate">): InvoiceTotals => {
@@ -18,11 +20,11 @@ export const calculateTotals = (invoice: Pick<Invoice, "lines" | "irpfRate">): I
   };
 };
 
-export const formatInvoiceDate = (value: string) => {
+export const formatInvoiceDate = (value: string, format: InvoiceDateFormat = "european") => {
   if (!value) return "";
   const [year, month, day] = value.split("-");
   if (!year || !month || !day) return value;
-  return `${day}-${month}-${year}`;
+  return format === "us" ? `${month}/${day}/${year}` : `${day}/${month}/${year}`;
 };
 
 export const parseNumberInput = (value: string) => {

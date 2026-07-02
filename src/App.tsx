@@ -1,17 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { ClientsView } from "./components/invoices/ClientsView";
 import { EmailLogin } from "./components/invoices/EmailLogin";
 import { InvoiceArchive } from "./components/invoices/InvoiceArchive";
 import { InvoiceDashboard } from "./components/invoices/InvoiceDashboard";
 import { InvoiceForm, type InvoiceErrors } from "./components/invoices/InvoiceForm";
 import { InvoicePreview } from "./components/invoices/InvoicePreview";
 import { LanguageSelector } from "./components/invoices/LanguageSelector";
+import { ShareModal } from "./components/invoices/ShareModal";
 import { getDictionary, InvoiceI18nContext, type Language, type TranslationKey } from "./i18n/invoiceI18n";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import type { InvoiceClient } from "./types/client";
 import type { Invoice } from "./types/invoice";
-import { downloadInvoicePdf, exportArchiveCsv, exportInvoiceCsv, type InvoiceExportLabels } from "./utils/invoiceExport";
+import { exportArchiveCsv, exportInvoiceCsv, type InvoiceExportLabels } from "./utils/invoiceExport";
 import { isValidAmount } from "./utils/invoiceMath";
-import { buildShareUrl, copyText, readSharedInvoiceFromHash } from "./utils/invoiceShare";
+import { buildShareUrl, readSharedInvoiceFromHash } from "./utils/invoiceShare";
+import {
+  deleteInvoiceClient,
+  loadInvoiceClients,
+  saveInvoiceClient as saveInvoiceClientToDatabase,
+  saveInvoiceClientFromParty,
+} from "./utils/clientStorage";
 import {
   cloneInvoice,
   createEmptyInvoice,
@@ -21,7 +30,7 @@ import {
   seedSampleInvoices,
 } from "./utils/invoiceStorage";
 
-type AppView = "dashboard" | "form" | "archive" | "preview";
+type AppView = "dashboard" | "form" | "archive" | "preview" | "clients";
 
 const LANGUAGE_STORAGE_KEY = "invoice-manager.language.v1";
 
@@ -92,6 +101,8 @@ const cleanInvoiceForSave = (invoice: Invoice): Invoice => {
       cityPostal: invoice.issuer.cityPostal.trim(),
       email: invoice.issuer.email?.trim(),
       iban: invoice.issuer.iban?.trim(),
+      region: invoice.issuer.region,
+      currencySymbol: invoice.issuer.currencySymbol?.trim(),
     },
     client: {
       ...invoice.client,
@@ -146,13 +157,15 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<InvoiceClient[]>([]);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [draft, setDraft] = useState<Invoice>(() => createEmptyInvoice());
   const [errors, setErrors] = useState<InvoiceErrors>({});
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [toast, setToast] = useState("");
-  const [lastShareLink, setLastShareLink] = useState("");
+  const [shareModalLink, setShareModalLink] = useState("");
+  const [saveConfirmationInvoice, setSaveConfirmationInvoice] = useState<Invoice | null>(null);
   const showToast = (message: string) => setToast(message);
 
   useEffect(() => {
@@ -202,6 +215,7 @@ function App() {
     const userId = session?.user.id;
     if (!userId) {
       setInvoices([]);
+      setClients([]);
       setSelectedInvoiceId("");
       setInvoiceLoading(false);
       return;
@@ -216,11 +230,14 @@ function App() {
           const seededInvoices = await seedSampleInvoices(userId);
           if (seededInvoices.length > 0) nextInvoices = seededInvoices;
         }
+        const nextClients = await loadInvoiceClients(userId);
         if (!isMounted) return;
         setInvoices(nextInvoices);
+        setClients(nextClients);
         setSelectedInvoiceId(nextInvoices[0]?.id ?? "");
         setActiveView("dashboard");
-        setLastShareLink("");
+        setShareModalLink("");
+        setSaveConfirmationInvoice(null);
         setErrors({});
       } catch (error) {
         if (isMounted) showToast(getErrorMessage(error, t("loadInvoicesError")));
@@ -254,6 +271,7 @@ function App() {
     { view: "form", label: t("createInvoice") },
     { view: "archive", label: t("archive") },
     { view: "preview", label: t("preview") },
+    { view: "clients", label: t("clients") },
   ];
 
   const handleSignIn = async (email: string, password: string) => {
@@ -308,8 +326,10 @@ function App() {
     }
 
     setInvoices([]);
+    setClients([]);
     setSelectedInvoiceId("");
-    setLastShareLink("");
+    setShareModalLink("");
+    setSaveConfirmationInvoice(null);
     showToast(t("signedOut"));
   };
 
@@ -317,6 +337,7 @@ function App() {
     const latestIssuer = invoices[0]?.issuer;
     setDraft(createEmptyInvoice(latestIssuer));
     setErrors({});
+    setSaveConfirmationInvoice(null);
     setActiveView("form");
   };
 
@@ -324,11 +345,13 @@ function App() {
     setDraft(cloneInvoice(invoice));
     setErrors({});
     setSelectedInvoiceId(invoice.id);
+    setSaveConfirmationInvoice(null);
     setActiveView("form");
   };
 
   const openPreview = (invoice: Invoice) => {
     setSelectedInvoiceId(invoice.id);
+    setSaveConfirmationInvoice(null);
     setActiveView("preview");
   };
 
@@ -357,7 +380,8 @@ function App() {
       });
       setSelectedInvoiceId(savedInvoice.id);
       setActiveView("preview");
-      setLastShareLink("");
+      setShareModalLink("");
+      setSaveConfirmationInvoice(savedInvoice);
       showToast(t("invoiceSaved"));
     } catch (error) {
       showToast(getErrorMessage(error, t("saveInvoiceError")));
@@ -379,13 +403,60 @@ function App() {
 
   const shareInvoice = async (invoice: Invoice) => {
     const link = buildShareUrl(invoice);
+    setShareModalLink(link);
+  };
+
+  const printInvoice = (invoice: Invoice) => {
+    setShareModalLink("");
+    setSaveConfirmationInvoice(null);
+    setSelectedInvoiceId(invoice.id);
+    setActiveView("preview");
+    window.setTimeout(() => window.print(), 150);
+  };
+
+  const upsertClientInState = (savedClient: InvoiceClient) => {
+    setClients((currentClients) => {
+      const exists = currentClients.some((client) => client.id === savedClient.id);
+      const nextClients = exists
+        ? currentClients.map((client) => (client.id === savedClient.id ? savedClient : client))
+        : [savedClient, ...currentClients];
+      return [...nextClients].sort((a, b) => a.name.localeCompare(b.name));
+    });
+  };
+
+  const saveClient = async (client: InvoiceClient) => {
+    const userId = session?.user.id;
+    if (!userId) return;
+
     try {
-      await copyText(link);
-      setLastShareLink(link);
-      showToast(t("linkCopied"));
-    } catch {
-      setLastShareLink(link);
-      showToast(t("linkGenerated"));
+      const savedClient = await saveInvoiceClientToDatabase(client, userId);
+      upsertClientInState(savedClient);
+      showToast(t("clientSaved"));
+    } catch (error) {
+      showToast(getErrorMessage(error, t("clientSaveError")));
+    }
+  };
+
+  const saveInvoiceClient = async (client: Invoice["client"]) => {
+    const userId = session?.user.id;
+    if (!userId || !client.name.trim()) return;
+
+    try {
+      const savedClient = await saveInvoiceClientFromParty(client, userId, clients);
+      upsertClientInState(savedClient);
+      showToast(t("clientSaved"));
+    } catch (error) {
+      showToast(getErrorMessage(error, t("clientSaveError")));
+    }
+  };
+
+  const removeClient = async (client: InvoiceClient) => {
+    try {
+      await deleteInvoiceClient(client.id);
+      setClients((currentClients) => currentClients.filter((item) => item.id !== client.id));
+      showToast(t("clientDeleted"));
+    } catch (error) {
+      showToast(getErrorMessage(error, t("clientDeleteError")));
     }
   };
 
@@ -413,7 +484,7 @@ function App() {
               </button>
               <button
                 type="button"
-                onClick={() => downloadInvoicePdf(sharedInvoice, exportLabels)}
+                onClick={() => window.print()}
                 className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
               >
                 {t("pdf")}
@@ -448,7 +519,7 @@ function App() {
   } else {
     content = (
       <div className="min-h-screen bg-app-bg text-app-text">
-        <header className="border-b border-app-border bg-app-surface/95 shadow-sm">
+        <header className="no-print border-b border-app-border bg-app-surface/95 shadow-sm">
           <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-app-border-subtle pb-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -502,20 +573,6 @@ function App() {
         </header>
 
         <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
-          {lastShareLink ? (
-            <section className="rounded-lg border border-app-border bg-app-soft p-4">
-              <label className="grid gap-2 text-sm font-semibold text-app-text">
-                {t("shareLink")}
-                <input
-                  className="min-h-10 w-full rounded-md border border-app-border bg-white px-3 py-2 text-sm text-app-text"
-                  value={lastShareLink}
-                  readOnly
-                  onFocus={(event) => event.currentTarget.select()}
-                />
-              </label>
-            </section>
-          ) : null}
-
           {invoiceLoading ? (
             <section className="rounded-lg border border-app-border-subtle bg-white p-8 text-center shadow-sm">
               <p className="text-sm font-semibold text-app-muted">{t("loading")}</p>
@@ -536,9 +593,11 @@ function App() {
               invoice={draft}
               errors={errors}
               mode={invoices.some((invoice) => invoice.id === draft.id) ? "edit" : "create"}
+              clients={clients}
               onChange={setDraft}
               onSubmit={saveInvoice}
               onCancel={() => setActiveView(selectedInvoice ? "preview" : "dashboard")}
+              onSaveClient={saveInvoiceClient}
             />
           ) : null}
 
@@ -550,7 +609,7 @@ function App() {
               onEdit={startEdit}
               onDelete={deleteInvoice}
               onShare={shareInvoice}
-              onDownloadPdf={(invoice) => downloadInvoicePdf(invoice, exportLabels)}
+              onDownloadPdf={printInvoice}
               onDownloadCsv={(invoice) => exportInvoiceCsv(invoice, exportLabels)}
               onExportArchiveCsv={() => exportArchiveCsv(invoices, exportLabels)}
             />
@@ -562,7 +621,7 @@ function App() {
                 invoice={selectedInvoice}
                 onEdit={startEdit}
                 onShare={shareInvoice}
-                onDownloadPdf={(invoice) => downloadInvoicePdf(invoice, exportLabels)}
+                onDownloadPdf={printInvoice}
                 onDownloadCsv={(invoice) => exportInvoiceCsv(invoice, exportLabels)}
               />
             ) : (
@@ -578,7 +637,39 @@ function App() {
               </section>
             )
           ) : null}
+
+          {!invoiceLoading && activeView === "clients" && session?.user.id ? (
+            <ClientsView clients={clients} userId={session.user.id} onSave={saveClient} onDelete={removeClient} />
+          ) : null}
         </main>
+
+        {saveConfirmationInvoice ? (
+          <div className="no-print fixed inset-0 z-40 flex items-center justify-center bg-app-strong/35 px-4 py-6">
+            <section className="w-full max-w-md rounded-lg border border-app-border bg-white p-5 text-center shadow-lg">
+              <p className="text-xs font-bold uppercase text-app-muted">{t("invoiceSaved")}</p>
+              <h2 className="mt-1 text-2xl font-black text-app-text">{t("invoiceSavedTitle")}</h2>
+              <p className="mt-2 text-sm text-app-muted">{t("invoiceSavedMessage")}</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEdit(saveConfirmationInvoice)}
+                  className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+                >
+                  {t("edit")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPreview(saveConfirmationInvoice)}
+                  className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+                >
+                  {t("viewInvoice")}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {shareModalLink ? <ShareModal link={shareModalLink} onClose={() => setShareModalLink("")} /> : null}
 
         {toast ? (
           <div className="fixed bottom-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-md bg-app-strong px-4 py-3 text-center text-sm font-semibold text-white shadow-lg">
