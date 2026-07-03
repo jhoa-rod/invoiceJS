@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useInvoiceI18n } from "../../i18n/invoiceI18n";
+import { BrandLogo } from "../BrandLogo";
 import { LanguageSelector } from "./LanguageSelector";
 
 interface EmailLoginProps {
@@ -14,6 +15,11 @@ interface EmailLoginProps {
 type AuthMode = "signIn" | "signUp";
 
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+const inputClass =
+  "min-h-12 w-full rounded-[12px] border border-line bg-card px-4 py-3 text-base text-ink outline-none transition placeholder:text-muted/65 focus:border-brand focus:ring-4 focus:ring-brand-soft disabled:cursor-not-allowed disabled:bg-brand-soft/55 disabled:text-muted";
+
+const labelClass = "text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted";
 
 export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignIn, onSignUp }: EmailLoginProps) {
   const { t } = useInvoiceI18n();
@@ -58,30 +64,33 @@ export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignI
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-8 text-app-text">
-      <main className="w-full max-w-md rounded-lg border border-app-border bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase text-app-muted">{t("appEyebrow")}</p>
-            <h1 className="mt-2 text-3xl font-black text-app-text">{t("appTitle")}</h1>
-          </div>
+    <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-8 text-ink">
+      <main className="w-full max-w-[640px] rounded-lg border border-line bg-card p-7 shadow-md sm:p-10">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <BrandLogo />
           <LanguageSelector compact />
         </div>
 
-        <p className="mt-3 text-sm leading-6 text-app-muted">{t("authSubtitle")}</p>
+        <div className="mt-9">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-gold">{t("appEyebrow")}</p>
+          <h1 className="mt-2 max-w-md font-display text-5xl font-extrabold leading-[0.96] tracking-[-0.04em] text-ink sm:text-6xl">
+            {t("appTitle")}
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-8 text-muted">{t("authSubtitle")}</p>
+        </div>
 
         {!isConfigured ? (
-          <div className="mt-5 rounded-md border border-app-border bg-app-soft p-4">
-            <p className="text-sm font-bold text-app-text">{t("configurationRequired")}</p>
-            <p className="mt-1 text-sm leading-6 text-app-muted">{t("configurationHelp")}</p>
+          <div className="mt-7 rounded-[14px] border border-line bg-brand-soft p-5">
+            <p className="font-display text-lg font-extrabold tracking-[-0.03em] text-ink">{t("configurationRequired")}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">{t("configurationHelp")}</p>
           </div>
         ) : null}
 
-        <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("email")}</span>
+        <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("email")}</span>
             <input
-              className="min-h-11 w-full rounded-md border border-app-border bg-white px-3 py-2 text-base text-app-text outline-none transition placeholder:text-app-muted/60 focus:border-app-accent focus:ring-2 focus:ring-app-soft"
+              className={inputClass}
               type="email"
               inputMode="email"
               autoComplete="email"
@@ -95,10 +104,10 @@ export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignI
             />
           </label>
 
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("password")}</span>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("password")}</span>
             <input
-              className="min-h-11 w-full rounded-md border border-app-border bg-white px-3 py-2 text-base text-app-text outline-none transition placeholder:text-app-muted/60 focus:border-app-accent focus:ring-2 focus:ring-app-soft"
+              className={inputClass}
               type="password"
               autoComplete={isSignUp ? "new-password" : "current-password"}
               value={password}
@@ -111,10 +120,10 @@ export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignI
           </label>
 
           {isSignUp ? (
-            <label className="grid gap-1">
-              <span className="text-xs font-bold uppercase text-app-muted">{t("confirmPassword")}</span>
+            <label className="grid gap-2">
+              <span className={labelClass}>{t("confirmPassword")}</span>
               <input
-                className="min-h-11 w-full rounded-md border border-app-border bg-white px-3 py-2 text-base text-app-text outline-none transition placeholder:text-app-muted/60 focus:border-app-accent focus:ring-2 focus:ring-app-soft"
+                className={inputClass}
                 type="password"
                 autoComplete="new-password"
                 value={confirmPassword}
@@ -128,19 +137,19 @@ export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignI
           ) : null}
 
           {fieldError || error ? (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            <p className="rounded-[12px] border border-danger/25 bg-danger/10 px-4 py-3 text-sm font-bold text-danger">
               {fieldError || error}
             </p>
           ) : null}
 
           {message ? (
-            <p className="rounded-md border border-app-border bg-app-soft px-3 py-2 text-sm font-semibold text-app-text">{message}</p>
+            <p className="rounded-[12px] border border-positive/20 bg-positive/10 px-4 py-3 text-sm font-bold text-positive">{message}</p>
           ) : null}
 
           <button
             type="submit"
             disabled={!isConfigured || isSubmitting}
-            className="min-h-11 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-app-accentStrong disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-12 rounded-[12px] bg-brand px-5 py-3 text-base font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55"
           >
             {isSubmitting ? t("loading") : isSignUp ? t("signUp") : t("signIn")}
           </button>
@@ -149,7 +158,7 @@ export function EmailLogin({ isConfigured, isSubmitting, error, message, onSignI
         <button
           type="button"
           onClick={switchMode}
-          className="mt-5 min-h-10 w-full rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+          className="mt-6 min-h-12 w-full rounded-[12px] border border-line bg-card px-5 py-3 text-base font-extrabold text-ink transition hover:-translate-y-px hover:border-brand hover:shadow-md"
         >
           {isSignUp ? t("switchToSignIn") : t("switchToSignUp")}
         </button>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { BrandLogo } from "./components/BrandLogo";
 import { ClientsView } from "./components/invoices/ClientsView";
 import { EmailLogin } from "./components/invoices/EmailLogin";
 import { InvoiceArchive } from "./components/invoices/InvoiceArchive";
@@ -8,7 +9,8 @@ import { InvoiceForm, type InvoiceErrors } from "./components/invoices/InvoiceFo
 import { InvoicePreview } from "./components/invoices/InvoicePreview";
 import { LanguageSelector } from "./components/invoices/LanguageSelector";
 import { ShareModal } from "./components/invoices/ShareModal";
-import { getDictionary, InvoiceI18nContext, type Language, type TranslationKey } from "./i18n/invoiceI18n";
+import { ConfirmModal } from "./components/ui/ConfirmModal";
+import { formatMessage, getDictionary, InvoiceI18nContext, type Language, type TranslationKey } from "./i18n/invoiceI18n";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { InvoiceClient } from "./types/client";
 import type { Invoice } from "./types/invoice";
@@ -163,10 +165,11 @@ function App() {
   const [draft, setDraft] = useState<Invoice>(() => createEmptyInvoice());
   const [errors, setErrors] = useState<InvoiceErrors>({});
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const [shareModalLink, setShareModalLink] = useState("");
   const [saveConfirmationInvoice, setSaveConfirmationInvoice] = useState<Invoice | null>(null);
-  const showToast = (message: string) => setToast(message);
+  const [deleteRequest, setDeleteRequest] = useState<Invoice[]>([]);
+  const showToast = (message: string, tone: "success" | "error" = "success") => setToast({ message, tone });
 
   useEffect(() => {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
@@ -218,6 +221,7 @@ function App() {
       setClients([]);
       setSelectedInvoiceId("");
       setInvoiceLoading(false);
+      setDeleteRequest([]);
       return;
     }
 
@@ -238,9 +242,10 @@ function App() {
         setActiveView("dashboard");
         setShareModalLink("");
         setSaveConfirmationInvoice(null);
+        setDeleteRequest([]);
         setErrors({});
       } catch (error) {
-        if (isMounted) showToast(getErrorMessage(error, t("loadInvoicesError")));
+        if (isMounted) showToast(getErrorMessage(error, t("loadInvoicesError")), "error");
       } finally {
         if (isMounted) setInvoiceLoading(false);
       }
@@ -259,7 +264,7 @@ function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(""), 2800);
+    const timeout = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
@@ -321,7 +326,7 @@ function App() {
     setAuthSubmitting(false);
 
     if (error) {
-      showToast(error.message || t("authGenericError"));
+      showToast(error.message || t("authGenericError"), "error");
       return;
     }
 
@@ -330,6 +335,7 @@ function App() {
     setSelectedInvoiceId("");
     setShareModalLink("");
     setSaveConfirmationInvoice(null);
+    setDeleteRequest([]);
     showToast(t("signedOut"));
   };
 
@@ -358,14 +364,14 @@ function App() {
   const saveInvoice = async (invoice: Invoice) => {
     const userId = session?.user.id;
     if (!userId) {
-      showToast(t("authGenericError"));
+      showToast(t("authGenericError"), "error");
       return;
     }
 
     const validationErrors = validateInvoice(invoice, invoices, t);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
-      showToast(t("reviewRequired"));
+      showToast(t("reviewRequired"), "error");
       return;
     }
 
@@ -384,20 +390,28 @@ function App() {
       setSaveConfirmationInvoice(savedInvoice);
       showToast(t("invoiceSaved"));
     } catch (error) {
-      showToast(getErrorMessage(error, t("saveInvoiceError")));
+      showToast(getErrorMessage(error, t("saveInvoiceError")), "error");
     }
   };
 
-  const deleteInvoice = async (invoice: Invoice) => {
-    if (!window.confirm(t("deleteConfirm").replace("{number}", invoice.invoiceNumber))) return;
+  const requestDeleteInvoices = (targetInvoices: Invoice[]) => {
+    if (targetInvoices.length === 0) return;
+    setDeleteRequest(targetInvoices);
+  };
 
+  const confirmDeleteInvoices = async () => {
+    const targetInvoices = deleteRequest;
+    if (targetInvoices.length === 0) return;
     try {
-      await deleteInvoiceFromDatabase(invoice.id);
-      setInvoices((current) => current.filter((item) => item.id !== invoice.id));
-      if (selectedInvoiceId === invoice.id) setSelectedInvoiceId("");
-      showToast(t("invoiceDeleted"));
+      await Promise.all(targetInvoices.map((invoice) => deleteInvoiceFromDatabase(invoice.id)));
+      const deletedIds = new Set(targetInvoices.map((invoice) => invoice.id));
+      setInvoices((current) => current.filter((item) => !deletedIds.has(item.id)));
+      if (selectedInvoiceId && deletedIds.has(selectedInvoiceId)) setSelectedInvoiceId("");
+      showToast(targetInvoices.length === 1 ? t("invoiceDeleted") : t("invoicesDeleted"));
     } catch (error) {
-      showToast(getErrorMessage(error, t("deleteInvoiceError")));
+      showToast(getErrorMessage(error, t("deleteInvoiceError")), "error");
+    } finally {
+      setDeleteRequest([]);
     }
   };
 
@@ -433,7 +447,7 @@ function App() {
       upsertClientInState(savedClient);
       showToast(t("clientSaved"));
     } catch (error) {
-      showToast(getErrorMessage(error, t("clientSaveError")));
+      showToast(getErrorMessage(error, t("clientSaveError")), "error");
     }
   };
 
@@ -446,7 +460,7 @@ function App() {
       upsertClientInState(savedClient);
       showToast(t("clientSaved"));
     } catch (error) {
-      showToast(getErrorMessage(error, t("clientSaveError")));
+      showToast(getErrorMessage(error, t("clientSaveError")), "error");
     }
   };
 
@@ -456,7 +470,7 @@ function App() {
       setClients((currentClients) => currentClients.filter((item) => item.id !== client.id));
       showToast(t("clientDeleted"));
     } catch (error) {
-      showToast(getErrorMessage(error, t("clientDeleteError")));
+      showToast(getErrorMessage(error, t("clientDeleteError")), "error");
     }
   };
 
@@ -464,28 +478,26 @@ function App() {
 
   if (sharedInvoice) {
     content = (
-      <div className="min-h-screen bg-app-bg text-app-text">
-        <header className="no-print border-b border-app-border bg-app-surface">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <div>
-              <p className="text-xs font-bold uppercase text-app-muted">{t("publicView")}</p>
-              <h1 className="text-xl font-black text-app-text">
-                {t("invoice")} {sharedInvoice.invoiceNumber}
-              </h1>
-            </div>
+      <div className="min-h-screen bg-surface text-ink">
+        <header className="no-print border-b border-line bg-card/90 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
+            <BrandLogo />
             <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-line bg-card px-4 py-2 text-xs font-bold text-muted">
+                {t("publicView")} · {sharedInvoice.invoiceNumber}
+              </span>
               <LanguageSelector compact />
               <button
                 type="button"
                 onClick={() => exportInvoiceCsv(sharedInvoice, exportLabels)}
-                className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+                className="min-h-11 rounded-[12px] border border-line bg-card px-5 py-2.5 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
               >
                 {t("csv")}
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+                className="min-h-11 rounded-[12px] bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
               >
                 {t("pdf")}
               </button>
@@ -499,8 +511,8 @@ function App() {
     );
   } else if (authLoading) {
     content = (
-      <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 text-app-text">
-        <div className="rounded-lg border border-app-border bg-white px-6 py-5 text-sm font-semibold text-app-muted shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-surface px-4 text-ink">
+        <div className="rounded-lg border border-line bg-card px-6 py-5 text-sm font-bold text-muted shadow-sm">
           {t("loading")}
         </div>
       </div>
@@ -518,31 +530,30 @@ function App() {
     );
   } else {
     content = (
-      <div className="min-h-screen bg-app-bg text-app-text">
-        <header className="no-print border-b border-app-border bg-app-surface/95 shadow-sm">
+      <div className="min-h-screen bg-surface text-ink">
+        <header className="no-print border-b border-line bg-card/90 shadow-sm backdrop-blur">
           <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-app-border-subtle pb-4">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <BrandLogo />
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <LanguageSelector compact />
+                <span className="rounded-full border border-line bg-card px-4 py-2 text-xs font-bold text-muted shadow-sm">{userEmail}</span>
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={authSubmitting}
-                  className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text transition hover:border-app-accent hover:bg-app-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-10 rounded-[11px] border border-line bg-card px-4 py-2 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {t("logout")}
                 </button>
-                <LanguageSelector compact />
               </div>
-              <p className="text-sm font-semibold text-app-muted">
-                {t("session")}: {userEmail}
-              </p>
             </div>
-            <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="mt-8 grid gap-5 border-t border-line pt-6 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <p className="text-xs font-bold uppercase text-app-muted">{t("appEyebrow")}</p>
-                <h1 className="text-3xl font-black text-app-text">{t("appTitle")}</h1>
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-gold">{t("appEyebrow")}</p>
+                <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.04em] text-ink">{t("appTitle")}</h1>
               </div>
-              <nav className="flex flex-wrap gap-2" aria-label="Sections">
+              <nav className="flex flex-wrap gap-1 rounded-[14px] border border-line bg-card p-1.5 shadow-sm" aria-label="Sections">
                 {navItems.map((item) => {
                   const isActive = activeView === item.view;
                   const handleClick = () => {
@@ -559,8 +570,8 @@ function App() {
                       onClick={handleClick}
                       className={
                         isActive
-                          ? "min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-app-accentStrong"
-                          : "min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+                          ? "min-h-10 rounded-[11px] bg-ink px-5 py-2 text-sm font-extrabold text-white shadow-sm"
+                          : "min-h-10 rounded-[11px] px-5 py-2 text-sm font-extrabold text-muted transition hover:bg-brand-soft hover:text-ink"
                       }
                     >
                       {item.label}
@@ -572,16 +583,17 @@ function App() {
           </div>
         </header>
 
-        <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
           {invoiceLoading ? (
-            <section className="rounded-lg border border-app-border-subtle bg-white p-8 text-center shadow-sm">
-              <p className="text-sm font-semibold text-app-muted">{t("loading")}</p>
+            <section className="rounded-lg border border-line bg-card p-8 text-center shadow-sm">
+              <p className="text-sm font-bold text-muted">{t("loading")}</p>
             </section>
           ) : null}
 
           {!invoiceLoading && activeView === "dashboard" ? (
             <InvoiceDashboard
               invoices={invoices}
+              userEmail={userEmail}
               onCreate={startCreate}
               onOpenArchive={() => setActiveView("archive")}
               onPreview={openPreview}
@@ -607,11 +619,11 @@ function App() {
               onCreate={startCreate}
               onPreview={openPreview}
               onEdit={startEdit}
-              onDelete={deleteInvoice}
               onShare={shareInvoice}
               onDownloadPdf={printInvoice}
-              onDownloadCsv={(invoice) => exportInvoiceCsv(invoice, exportLabels)}
+              onDownloadSelectedCsv={(selectedInvoices) => exportArchiveCsv(selectedInvoices, exportLabels)}
               onExportArchiveCsv={() => exportArchiveCsv(invoices, exportLabels)}
+              onDeleteSelected={requestDeleteInvoices}
             />
           ) : null}
 
@@ -625,12 +637,12 @@ function App() {
                 onDownloadCsv={(invoice) => exportInvoiceCsv(invoice, exportLabels)}
               />
             ) : (
-              <section className="rounded-lg border border-app-border-subtle bg-white p-8 text-center shadow-sm">
-                <p className="text-sm font-semibold text-app-muted">{t("noInvoiceSelected")}</p>
+              <section className="rounded-lg border border-line bg-card p-8 text-center shadow-sm">
+                <p className="text-sm font-bold text-muted">{t("noInvoiceSelected")}</p>
                 <button
                   type="button"
                   onClick={startCreate}
-                  className="mt-4 min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+                  className="mt-4 min-h-11 rounded-[12px] bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
                 >
                   {t("createInvoice")}
                 </button>
@@ -644,23 +656,24 @@ function App() {
         </main>
 
         {saveConfirmationInvoice ? (
-          <div className="no-print fixed inset-0 z-40 flex items-center justify-center bg-app-strong/35 px-4 py-6">
-            <section className="w-full max-w-md rounded-lg border border-app-border bg-white p-5 text-center shadow-lg">
-              <p className="text-xs font-bold uppercase text-app-muted">{t("invoiceSaved")}</p>
-              <h2 className="mt-1 text-2xl font-black text-app-text">{t("invoiceSavedTitle")}</h2>
-              <p className="mt-2 text-sm text-app-muted">{t("invoiceSavedMessage")}</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <div className="no-print fixed inset-0 z-40 flex items-center justify-center bg-ink/40 px-5 py-6 backdrop-blur-[2px] animate-[modalFade_200ms_ease-out]">
+            <section className="w-full max-w-md rounded-[18px] border border-line bg-card p-7 text-center shadow-lg animate-[modalIn_200ms_ease-out]">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gold-soft text-xl font-extrabold text-gold">✓</div>
+              <p className="mt-5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-gold">{t("invoiceSaved")}</p>
+              <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-ink">{t("invoiceSavedTitle")}</h2>
+              <p className="mt-2 text-sm text-muted">{t("invoiceSavedMessage")}</p>
+              <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <button
                   type="button"
                   onClick={() => startEdit(saveConfirmationInvoice)}
-                  className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+                  className="min-h-11 rounded-[12px] border border-line bg-card px-5 py-2.5 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
                 >
                   {t("edit")}
                 </button>
                 <button
                   type="button"
                   onClick={() => openPreview(saveConfirmationInvoice)}
-                  className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+                  className="min-h-11 rounded-[12px] bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
                 >
                   {t("viewInvoice")}
                 </button>
@@ -671,9 +684,34 @@ function App() {
 
         {shareModalLink ? <ShareModal link={shareModalLink} onClose={() => setShareModalLink("")} /> : null}
 
+        {deleteRequest.length > 0 ? (
+          <ConfirmModal
+            title={t("deleteSelectedInvoicesTitle")}
+            message={
+              deleteRequest.length === 1
+                ? formatMessage(t("deleteConfirm"), { number: deleteRequest[0].invoiceNumber })
+                : formatMessage(t("deleteSelectedInvoicesMessage"), { count: deleteRequest.length })
+            }
+            confirmLabel={t("confirmDelete")}
+            cancelLabel={t("cancel")}
+            onConfirm={() => void confirmDeleteInvoices()}
+            onCancel={() => setDeleteRequest([])}
+          />
+        ) : null}
+
         {toast ? (
-          <div className="fixed bottom-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-md bg-app-strong px-4 py-3 text-center text-sm font-semibold text-white shadow-lg">
-            {toast}
+          <div className="fixed bottom-5 right-5 z-50 flex w-[calc(100%-2.5rem)] max-w-sm items-center gap-3 rounded-[14px] bg-ink px-5 py-4 text-sm font-extrabold text-white shadow-lg">
+            <span
+              className={
+                toast.tone === "error"
+                  ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-danger text-white"
+                  : "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold text-ink"
+              }
+              aria-hidden="true"
+            >
+              {toast.tone === "error" ? "!" : "✓"}
+            </span>
+            <span>{toast.message}</span>
           </div>
         ) : null}
       </div>

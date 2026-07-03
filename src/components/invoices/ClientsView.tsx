@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { InvoiceClient } from "../../types/client";
 import { formatMessage, useInvoiceI18n } from "../../i18n/invoiceI18n";
 import { generateId } from "../../utils/invoiceStorage";
+import { ConfirmModal } from "../ui/ConfirmModal";
 
 interface ClientsViewProps {
   clients: InvoiceClient[];
@@ -11,7 +12,9 @@ interface ClientsViewProps {
 }
 
 const inputClass =
-  "min-h-10 w-full rounded-md border border-app-border bg-white px-3 py-2 text-sm text-app-text outline-none transition placeholder:text-app-muted/60 focus:border-app-accent focus:ring-2 focus:ring-app-soft";
+  "min-h-11 w-full rounded-[12px] border border-line bg-card px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted/65 focus:border-brand focus:ring-4 focus:ring-brand-soft";
+
+const labelClass = "text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted";
 
 const emptyClient = (userId: string): InvoiceClient => {
   const now = new Date().toISOString();
@@ -32,6 +35,7 @@ export function ClientsView({ clients, userId, onSave, onDelete }: ClientsViewPr
   const { t } = useInvoiceI18n();
   const [draft, setDraft] = useState<InvoiceClient>(() => emptyClient(userId));
   const [isEditing, setIsEditing] = useState(false);
+  const [clientPendingDelete, setClientPendingDelete] = useState<InvoiceClient | null>(null);
 
   useEffect(() => {
     setDraft(emptyClient(userId));
@@ -59,103 +63,104 @@ export function ClientsView({ clients, userId, onSave, onDelete }: ClientsViewPr
     startNew();
   };
 
-  const handleDelete = async (client: InvoiceClient) => {
-    if (!window.confirm(formatMessage(t("deleteClientConfirm"), { name: client.name }))) return;
-    await onDelete(client);
-    if (draft.id === client.id) startNew();
+  const confirmDelete = async () => {
+    if (!clientPendingDelete) return;
+    await onDelete(clientPendingDelete);
+    if (draft.id === clientPendingDelete.id) startNew();
+    setClientPendingDelete(null);
   };
 
   return (
     <section className="grid gap-6">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <h2 className="text-2xl font-black text-app-text">{t("savedClients")}</h2>
-          <p className="mt-1 text-sm text-app-muted">{t("clientsDescription")}</p>
+          <h2 className="font-display text-4xl font-extrabold tracking-[-0.04em] text-ink">{t("savedClients")}</h2>
+          <p className="mt-2 text-lg text-muted">{t("clientsDescription")}</p>
         </div>
         <button
           type="button"
           onClick={startNew}
-          className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+          className="min-h-12 rounded-[12px] bg-brand px-6 py-3 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
         >
           {t("newClient")}
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
-        <h3 className="text-base font-bold text-app-text">{isEditing ? t("editClient") : t("newClient")}</h3>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("clientName")}</span>
+      <form onSubmit={handleSubmit} className="rounded-lg border border-line bg-card p-5 shadow-sm">
+        <h3 className="font-display text-xl font-extrabold tracking-[-0.03em] text-ink">{isEditing ? t("editClient") : t("newClient")}</h3>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("clientName")}</span>
             <input className={inputClass} value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} />
           </label>
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("taxId")}</span>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("taxId")}</span>
             <input className={inputClass} value={draft.taxId} onChange={(event) => updateDraft("taxId", event.target.value)} />
           </label>
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("address")}</span>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("address")}</span>
             <input className={inputClass} value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} />
           </label>
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("cityPostal")}</span>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("cityPostal")}</span>
             <input className={inputClass} value={draft.cityPostal} onChange={(event) => updateDraft("cityPostal", event.target.value)} />
           </label>
-          <label className="grid gap-1">
-            <span className="text-xs font-bold uppercase text-app-muted">{t("email")}</span>
+          <label className="grid gap-2">
+            <span className={labelClass}>{t("email")}</span>
             <input className={inputClass} type="email" value={draft.email} onChange={(event) => updateDraft("email", event.target.value)} />
           </label>
         </div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
           <button
             type="button"
             onClick={startNew}
-            className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+            className="min-h-11 rounded-[12px] border border-line bg-card px-5 py-2.5 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
           >
             {t("cancel")}
           </button>
           <button
             type="submit"
-            className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+            className="min-h-11 rounded-[12px] bg-brand px-6 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
           >
             {t("saveClient")}
           </button>
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-app-border-subtle bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-line bg-card shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-[920px] w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-app-soft text-left text-app-text">
-                <th className="border-b border-app-border px-4 py-3">{t("clientName")}</th>
-                <th className="border-b border-app-border px-4 py-3">{t("taxId")}</th>
-                <th className="border-b border-app-border px-4 py-3">{t("address")}</th>
-                <th className="border-b border-app-border px-4 py-3">{t("cityPostal")}</th>
-                <th className="border-b border-app-border px-4 py-3">{t("email")}</th>
-                <th className="border-b border-app-border px-4 py-3">{t("actions")}</th>
+              <tr className="bg-surface text-left text-muted">
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("clientName")}</th>
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("taxId")}</th>
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("address")}</th>
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("cityPostal")}</th>
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("email")}</th>
+                <th className="border-b border-line px-4 py-4 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {clients.map((client) => (
-                <tr key={client.id} className="align-top hover:bg-app-bg">
-                  <td className="border-b border-app-border-subtle px-4 py-3 font-bold text-app-text">{client.name}</td>
-                  <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{client.taxId}</td>
-                  <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{client.address}</td>
-                  <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{client.cityPostal}</td>
-                  <td className="border-b border-app-border-subtle px-4 py-3 text-app-muted">{client.email}</td>
-                  <td className="border-b border-app-border-subtle px-4 py-3">
+                <tr key={client.id} className="align-top transition hover:bg-surface">
+                  <td className="border-b border-line px-4 py-5 font-display text-lg font-extrabold tracking-[-0.03em] text-ink">{client.name}</td>
+                  <td className="border-b border-line px-4 py-5 text-muted">{client.taxId}</td>
+                  <td className="border-b border-line px-4 py-5 text-muted">{client.address}</td>
+                  <td className="border-b border-line px-4 py-5 text-muted">{client.cityPostal}</td>
+                  <td className="border-b border-line px-4 py-5 text-muted">{client.email}</td>
+                  <td className="border-b border-line px-4 py-5">
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => startEdit(client)}
-                        className="min-h-9 rounded-md border border-app-border bg-white px-3 py-1.5 text-xs font-bold text-app-text transition hover:border-app-accent hover:bg-app-bg"
+                        className="min-h-10 rounded-[11px] border border-line bg-card px-4 py-2 text-xs font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
                       >
                         {t("edit")}
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(client)}
-                        className="min-h-9 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:border-red-400"
+                        onClick={() => setClientPendingDelete(client)}
+                        className="min-h-10 rounded-[11px] border border-danger/25 bg-card px-4 py-2 text-xs font-extrabold text-danger shadow-sm transition hover:-translate-y-px hover:border-danger hover:shadow-md"
                       >
                         {t("delete")}
                       </button>
@@ -166,8 +171,19 @@ export function ClientsView({ clients, userId, onSave, onDelete }: ClientsViewPr
             </tbody>
           </table>
         </div>
-        {clients.length === 0 ? <div className="p-8 text-center text-sm font-semibold text-app-muted">{t("noClientsSaved")}</div> : null}
+        {clients.length === 0 ? <div className="p-10 text-center text-sm font-bold text-muted">{t("noClientsSaved")}</div> : null}
       </div>
+
+      {clientPendingDelete ? (
+        <ConfirmModal
+          title={t("deleteClientTitle")}
+          message={formatMessage(t("deleteClientMessage"), { name: clientPendingDelete.name })}
+          confirmLabel={t("confirmDelete")}
+          cancelLabel={t("cancel")}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setClientPendingDelete(null)}
+        />
+      ) : null}
     </section>
   );
 }

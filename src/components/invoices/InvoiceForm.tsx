@@ -12,6 +12,7 @@ import {
   invoiceRegionOptions,
 } from "../../utils/invoiceRegion";
 import { createEmptyLine } from "../../utils/invoiceStorage";
+import { Dropdown } from "../ui/Dropdown";
 
 export type InvoiceErrors = Record<string, string>;
 
@@ -27,25 +28,17 @@ interface InvoiceFormProps {
 }
 
 const inputClass =
-  "min-h-10 w-full rounded-md border border-app-border bg-white px-3 py-2 text-sm text-app-text outline-none transition placeholder:text-app-muted/60 focus:border-app-accent focus:ring-2 focus:ring-app-soft";
+  "min-h-11 w-full rounded-[12px] border border-line bg-card px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted/65 focus:border-brand focus:ring-4 focus:ring-brand-soft disabled:cursor-not-allowed disabled:bg-brand-soft/55 disabled:text-muted";
 
-const labelClass = "text-xs font-bold uppercase text-app-muted";
+const labelClass = "text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted";
 
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: ReactNode;
-}) {
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
-    <label className="grid gap-1">
+    <div className="grid gap-2">
       <span className={labelClass}>{label}</span>
       {children}
-      {error ? <span className="text-xs font-semibold text-red-600">{error}</span> : null}
-    </label>
+      {error ? <span className="text-xs font-bold text-danger">{error}</span> : null}
+    </div>
   );
 }
 
@@ -129,27 +122,49 @@ export function InvoiceForm({
     updateInvoice({ irpfRate: parseNumberInput(event.target.value) });
   };
 
+  const statusOptions = [
+    { value: "borrador", label: t("draftStatus") },
+    { value: "enviada", label: t("sentStatus") },
+    { value: "pagada", label: t("paidStatus") },
+  ];
+
+  const regionOptions = invoiceRegionOptions.map((option) => ({
+    value: option.id,
+    label: t(option.labelKey),
+    description: option.taxLabel,
+  }));
+
+  const clientOptions = [
+    { value: "", label: t("selectSavedClient") },
+    ...clients.map((client) => ({
+      value: client.id,
+      label: client.name,
+      description: client.taxId,
+    })),
+  ];
+
   return (
     <form onSubmit={handleSubmit} className="grid gap-6">
       <section className="grid gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-app-text">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-gold">{t("invoiceData")}</p>
+            <h2 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.04em] text-ink">
               {mode === "create" ? t("createInvoice") : t("editInvoice")}
             </h2>
-            <p className="mt-1 text-sm text-app-muted">{t("invoiceFormHelp")}</p>
+            <p className="mt-2 text-lg text-muted">{t("invoiceFormHelp")}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={onCancel}
-              className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+              className="min-h-12 rounded-[12px] border border-line bg-card px-5 py-3 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
             >
               {t("cancel")}
             </button>
             <button
               type="submit"
-              className="min-h-10 rounded-md bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accentStrong"
+              className="min-h-12 rounded-[12px] bg-brand px-6 py-3 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md"
             >
               {t("saveInvoice")}
             </button>
@@ -157,9 +172,9 @@ export function InvoiceForm({
         </div>
       </section>
 
-      <section className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
-        <h3 className="text-base font-bold text-app-text">{t("invoiceData")}</h3>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="rounded-lg border border-line bg-card p-5 shadow-sm">
+        <h3 className="font-display text-xl font-extrabold tracking-[-0.03em] text-ink">{t("invoiceData")}</h3>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Field label={t("invoiceNumber")} error={errors.invoiceNumber}>
             <input
               className={inputClass}
@@ -190,27 +205,13 @@ export function InvoiceForm({
             />
           </Field>
           <Field label={t("status")}>
-            <select
-              className={inputClass}
-              value={invoice.status}
-              onChange={(event) => updateInvoice({ status: event.target.value as InvoiceStatus })}
-            >
-              <option value="borrador">{t("draftStatus")}</option>
-              <option value="enviada">{t("sentStatus")}</option>
-              <option value="pagada">{t("paidStatus")}</option>
-            </select>
+            <Dropdown value={invoice.status} options={statusOptions} onChange={(value) => updateInvoice({ status: value as InvoiceStatus })} />
           </Field>
           <Field label={t("billingRegion")}>
-            <select className={inputClass} value={regionConfig.id} onChange={(event) => updateRegion(event.target.value as InvoiceParty["region"])}>
-              {invoiceRegionOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {t(option.labelKey)}
-                </option>
-              ))}
-            </select>
+            <Dropdown value={regionConfig.id} options={regionOptions} onChange={(value) => updateRegion(value as InvoiceParty["region"])} />
           </Field>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Field label={t("currencySymbol")}>
             <input
               className={inputClass}
@@ -221,10 +222,10 @@ export function InvoiceForm({
             />
           </Field>
         </div>
-        <div className="mt-4">
+        <div className="mt-5">
           <Field label={t("period")}>
             <textarea
-              className={`${inputClass} min-h-24 resize-y`}
+              className={`${inputClass} min-h-28 resize-y`}
               value={invoice.period}
               onChange={(event) => updateInvoice({ period: event.target.value })}
             />
@@ -233,9 +234,9 @@ export function InvoiceForm({
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
-          <h3 className="text-base font-bold text-app-text">{t("issuerData")}</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-line bg-card p-5 shadow-sm">
+          <h3 className="font-display text-xl font-extrabold tracking-[-0.03em] text-ink">{t("issuerData")}</h3>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <Field label={t("fullName")}>
               <input className={inputClass} value={invoice.issuer.name} onChange={(event) => updateIssuer("name", event.target.value)} />
             </Field>
@@ -261,32 +262,25 @@ export function InvoiceForm({
           </div>
         </div>
 
-        <div className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-line bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-base font-bold text-app-text">{t("clientData")}</h3>
+            <h3 className="font-display text-xl font-extrabold tracking-[-0.03em] text-ink">{t("clientData")}</h3>
             {onSaveClient ? (
               <button
                 type="button"
                 onClick={() => void onSaveClient(invoice.client)}
                 disabled={!invoice.client.name.trim()}
-                className="min-h-9 rounded-md border border-app-border bg-white px-3 py-1.5 text-xs font-bold text-app-text transition hover:border-app-accent hover:bg-app-bg disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-10 rounded-[11px] border border-line bg-card px-4 py-2 text-xs font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {t("saveAsClient")}
               </button>
             ) : null}
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             {clients.length > 0 ? (
               <div className="sm:col-span-2">
                 <Field label={t("savedClient")}>
-                  <select className={inputClass} value="" onChange={(event) => applySavedClient(event.target.value)}>
-                    <option value="">{t("selectSavedClient")}</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Dropdown value="" options={clientOptions} placeholder={t("selectSavedClient")} onChange={applySavedClient} />
                 </Field>
               </div>
             ) : null}
@@ -315,49 +309,45 @@ export function InvoiceForm({
         </div>
       </section>
 
-      <section className="rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-line bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-app-text">{t("serviceLines")}</h3>
-            {errors.lines ? <p className="mt-1 text-xs font-semibold text-red-600">{errors.lines}</p> : null}
+            <h3 className="font-display text-xl font-extrabold tracking-[-0.03em] text-ink">{t("serviceLines")}</h3>
+            {errors.lines ? <p className="mt-1 text-xs font-bold text-danger">{errors.lines}</p> : null}
           </div>
           <button
             type="button"
             onClick={addLine}
-            className="min-h-10 rounded-md border border-app-border bg-white px-4 py-2 text-sm font-semibold text-app-text hover:border-app-accent hover:bg-app-bg"
+            className="min-h-11 rounded-[12px] border border-line bg-card px-5 py-2.5 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
           >
             {t("addLine")}
           </button>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[820px] w-full border-collapse text-sm">
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-[860px] w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-app-soft text-left text-app-text">
-                <th className="border border-app-border px-3 py-2">{t("description")}</th>
-                <th className="border border-app-border px-3 py-2">{t("daysDates")}</th>
-                <th className="border border-app-border px-3 py-2">{t("hours")}</th>
-                <th className="border border-app-border px-3 py-2">{t("amount")}</th>
-                <th className="w-28 border border-app-border px-3 py-2">{t("action")}</th>
+              <tr className="bg-surface text-left text-muted">
+                <th className="border border-line px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("description")}</th>
+                <th className="border border-line px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("daysDates")}</th>
+                <th className="border border-line px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("hours")}</th>
+                <th className="border border-line px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("amount")}</th>
+                <th className="w-32 border border-line px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.14em]">{t("action")}</th>
               </tr>
             </thead>
             <tbody>
               {invoice.lines.map((line) => (
                 <tr key={line.id}>
-                  <td className="border border-app-border p-2 align-top">
-                    <input
-                      className={inputClass}
-                      value={line.description}
-                      onChange={(event) => updateLine(line.id, { description: event.target.value })}
-                    />
+                  <td className="border border-line p-2 align-top">
+                    <input className={inputClass} value={line.description} onChange={(event) => updateLine(line.id, { description: event.target.value })} />
                   </td>
-                  <td className="border border-app-border p-2 align-top">
+                  <td className="border border-line p-2 align-top">
                     <input className={inputClass} value={line.dates} onChange={(event) => updateLine(line.id, { dates: event.target.value })} />
                   </td>
-                  <td className="border border-app-border p-2 align-top">
+                  <td className="border border-line p-2 align-top">
                     <input className={inputClass} value={line.hours ?? ""} onChange={(event) => updateLine(line.id, { hours: event.target.value })} />
                   </td>
-                  <td className="border border-app-border p-2 align-top">
+                  <td className="border border-line p-2 align-top">
                     <input
                       className={inputClass}
                       type="number"
@@ -368,15 +358,15 @@ export function InvoiceForm({
                       aria-invalid={Boolean(errors[`line.${line.id}.amount`])}
                     />
                     {errors[`line.${line.id}.amount`] ? (
-                      <span className="mt-1 block text-xs font-semibold text-red-600">{errors[`line.${line.id}.amount`]}</span>
+                      <span className="mt-1 block text-xs font-bold text-danger">{errors[`line.${line.id}.amount`]}</span>
                     ) : null}
                   </td>
-                  <td className="border border-app-border p-2 align-top">
+                  <td className="border border-line p-2 align-top">
                     <button
                       type="button"
                       onClick={() => removeLine(line.id)}
                       disabled={invoice.lines.length === 1}
-                      className="min-h-10 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="min-h-11 w-full rounded-[12px] border border-danger/25 bg-card px-3 py-2 text-sm font-extrabold text-danger transition hover:-translate-y-px hover:border-danger hover:shadow-sm disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {t("remove")}
                     </button>
@@ -388,20 +378,20 @@ export function InvoiceForm({
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-lg border border-app-border-subtle bg-white p-4 shadow-sm sm:grid-cols-3">
+      <section className="grid gap-3 rounded-lg border border-line bg-card p-5 shadow-sm sm:grid-cols-3">
         <div>
-          <p className="text-xs font-bold uppercase text-app-muted">{t("grossTotal")}</p>
-          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.totalBruto, currencySymbol)}</p>
+          <p className={labelClass}>{t("grossTotal")}</p>
+          <p className="mt-2 font-mono text-3xl font-bold tracking-[-0.04em] text-ink">{formatCurrency(totals.totalBruto, currencySymbol)}</p>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase text-app-muted">
+          <p className={labelClass}>
             {taxLabel} {Number.isFinite(invoice.irpfRate) ? invoice.irpfRate : 0}%
           </p>
-          <p className="mt-1 text-2xl font-black text-app-text">{formatCurrency(totals.irpf, currencySymbol)}</p>
+          <p className="mt-2 font-mono text-3xl font-bold tracking-[-0.04em] text-ink">{formatCurrency(totals.irpf, currencySymbol)}</p>
         </div>
-        <div>
-          <p className="text-xs font-bold uppercase text-app-muted">{t("netTotal")}</p>
-          <p className="mt-1 text-2xl font-black text-app-positive">{formatCurrency(totals.totalNeto, currencySymbol)}</p>
+        <div className="rounded-[14px] bg-ink p-4 text-white">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/60">{t("netTotal")}</p>
+          <p className="mt-2 font-mono text-3xl font-bold tracking-[-0.04em]">{formatCurrency(totals.totalNeto, currencySymbol)}</p>
         </div>
       </section>
     </form>

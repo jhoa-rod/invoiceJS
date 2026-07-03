@@ -4,29 +4,43 @@
 
 @layer base {
   :root {
-    --color-bg: #f8f5fb;
-    --color-surface: #ffffff;
-    --color-soft: #eee8f4;
-    --color-border: #d7cbe3;
-    --color-border-subtle: #ece5f2;
-    --color-text: #30283a;
-    --color-muted: #6f617c;
-    --color-accent: #75638f;
-    --color-accent-strong: #5d4c75;
-    --color-positive: #5f6f86;
-    --color-strong: #30283a;
+    --ink: #1c1625;
+    --muted: #7a6e88;
+    --surface: #f7f5fb;
+    --card: #ffffff;
+    --line: #e7e0f0;
+    --brand: #6b5590;
+    --brand-deep: #4a3866;
+    --brand-soft: #f1ecf9;
+    --gold: #c9a15a;
+    --gold-soft: #f8efdc;
+    --positive: #1f8a5f;
+    --danger: #c4443a;
+    --color-bg: var(--surface);
+    --color-surface: var(--card);
+    --color-soft: var(--brand-soft);
+    --color-border: var(--line);
+    --color-border-subtle: var(--line);
+    --color-text: var(--ink);
+    --color-muted: var(--muted);
+    --color-accent: var(--brand);
+    --color-accent-strong: var(--brand-deep);
+    --color-positive: var(--positive);
+    --color-strong: var(--ink);
   }
 
   html {
-    font-family: "Avenir Next", "Segoe UI", sans-serif;
-    color: var(--color-text);
-    background: var(--color-bg);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
   }
 
   body {
     margin: 0;
     min-height: 100vh;
-    background: var(--color-bg);
+    background:
+      radial-gradient(circle at 12% 8%, rgba(201, 161, 90, 0.08), transparent 26rem),
+      linear-gradient(180deg, #fbf9ff 0%, var(--surface) 34rem);
   }
 
   * {
@@ -38,6 +52,50 @@
   select,
   textarea {
     font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--brand-deep);
+  }
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -66,22 +124,22 @@
 
   .invoice-sheet {
     max-width: none !important;
-    border: 1px solid var(--color-border-subtle) !important;
+    border: 1px solid var(--line) !important;
     border-radius: 0 !important;
     box-shadow: none !important;
   }
 
   .invoice-print-band {
-    background: #75638f !important;
+    background: var(--brand) !important;
     color: #ffffff !important;
   }
 
   .bg-app-soft {
-    background: var(--color-soft) !important;
+    background: var(--brand-soft) !important;
   }
 
   .bg-app-strong {
-    background: var(--color-strong) !important;
+    background: var(--ink) !important;
     color: #ffffff !important;
   }
 }
