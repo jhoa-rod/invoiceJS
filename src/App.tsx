@@ -299,7 +299,7 @@ function App() {
     showToast(t("signedIn"));
   };
 
-  const handleSignUp = async (email: string, password: string) => {
+  const handleSignUp = async (email: string, password: string, fullName?: string) => {
     if (!supabase) {
       setAuthError(t("configurationHelp"));
       return;
@@ -308,7 +308,15 @@ function App() {
     setAuthSubmitting(true);
     setAuthError("");
     setAuthMessage("");
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName?.trim() ?? "",
+        },
+      },
+    });
     setAuthSubmitting(false);
 
     if (error) {
@@ -317,6 +325,28 @@ function App() {
     }
 
     setAuthMessage(t("accountCreated"));
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!supabase) {
+      setAuthError(t("configurationHelp"));
+      return;
+    }
+
+    setAuthSubmitting(true);
+    setAuthError("");
+    setAuthMessage("");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      setAuthSubmitting(false);
+      setAuthError(error.message || t("authGenericError"));
+    }
   };
 
   const handleLogout = async () => {
@@ -526,6 +556,7 @@ function App() {
         message={authMessage}
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
+        onGoogleSignIn={handleGoogleSignIn}
       />
     );
   } else {

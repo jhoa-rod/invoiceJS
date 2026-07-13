@@ -1,15 +1,19 @@
 interface BrandLogoProps {
   compact?: boolean;
+  inverted?: boolean;
 }
 
-export function BrandLogo({ compact = false }: BrandLogoProps) {
+export function BrandLogo({ compact = false, inverted = false }: BrandLogoProps) {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[13px] bg-[linear-gradient(135deg,#6b5590,#4a3866)] shadow-sm">
-        <span className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-gold" aria-hidden="true" />
-        <span className="relative font-display text-sm font-extrabold tracking-[-0.03em] text-white">IJS</span>
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[13px] bg-brand-soft shadow-sm ring-1 ring-line">
+        <img src="/invoicejs-logo.png" alt="" className="h-full w-full object-contain p-1" aria-hidden="true" />
       </div>
-      {!compact ? <span className="font-display text-xl font-bold tracking-[-0.03em] text-ink">InvoiceJS</span> : null}
+      {!compact ? (
+        <span className={inverted ? "font-display text-xl font-bold tracking-[-0.03em] text-white" : "font-display text-xl font-bold tracking-[-0.03em] text-ink"}>
+          InvoiceJS
+        </span>
+      ) : null}
     </div>
   );
 }
