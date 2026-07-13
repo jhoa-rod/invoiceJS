@@ -11,6 +11,7 @@ interface EmailLoginProps {
   onSignIn: (email: string, password: string) => void;
   onSignUp: (email: string, password: string, fullName?: string) => void;
   onGoogleSignIn: () => void;
+  onPasswordResetRequest: (email: string) => Promise<void>;
 }
 
 type AuthMode = "signIn" | "signUp";
@@ -41,6 +42,7 @@ export function EmailLogin({
   onSignIn,
   onSignUp,
   onGoogleSignIn,
+  onPasswordResetRequest,
 }: EmailLoginProps) {
   const { t } = useInvoiceI18n();
   const [mode, setMode] = useState<AuthMode>("signUp");
@@ -48,6 +50,11 @@ export function EmailLogin({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fieldError, setFieldError] = useState("");
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
   const isSignUp = mode === "signUp";
   const benefits = [
@@ -87,6 +94,39 @@ export function EmailLogin({
   const switchMode = () => {
     setMode(isSignUp ? "signIn" : "signUp");
     setFieldError("");
+  };
+
+  const openResetModal = () => {
+    setResetEmail(email);
+    setResetError("");
+    setResetMessage("");
+    setResetModalOpen(true);
+  };
+
+  const handleResetSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setResetError("");
+    setResetMessage("");
+
+    const normalizedEmail = resetEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setResetError(t("enterEmail"));
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setResetError(t("enterEmail"));
+      return;
+    }
+
+    setResetSubmitting(true);
+    try {
+      await onPasswordResetRequest(normalizedEmail);
+      setResetMessage(t("resetEmailSent"));
+    } catch (resetRequestError) {
+      setResetError(resetRequestError instanceof Error ? resetRequestError.message : t("authGenericError"));
+    } finally {
+      setResetSubmitting(false);
+    }
   };
 
   return (
@@ -203,7 +243,18 @@ export function EmailLogin({
               </label>
 
               <label className="grid gap-2">
-                <span className={labelClass}>{t("password")}</span>
+                <span className="flex items-center justify-between gap-3">
+                  <span className={labelClass}>{t("password")}</span>
+                  {!isSignUp ? (
+                    <button
+                      type="button"
+                      onClick={openResetModal}
+                      className="text-xs font-extrabold text-brand underline decoration-line underline-offset-4 transition hover:text-brand-deep"
+                    >
+                      {t("forgotPassword")}
+                    </button>
+                  ) : null}
+                </span>
                 <input
                   className={inputClass}
                   type="password"
@@ -265,6 +316,72 @@ export function EmailLogin({
           </main>
         </div>
       </section>
+
+      {resetModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 px-5 py-6 backdrop-blur-[2px] animate-[modalFade_200ms_ease-out]">
+          <section className="w-full max-w-[460px] rounded-[20px] border border-line bg-card p-7 shadow-lg animate-[modalIn_200ms_ease-out]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-display text-2xl font-extrabold tracking-[-0.03em] text-ink">{t("resetPassword")}</h2>
+                <p className="mt-2 text-sm leading-6 text-muted">{t("resetPasswordHelp")}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetModalOpen(false)}
+                aria-label={t("close")}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-card text-2xl font-medium leading-none text-muted transition hover:-translate-y-px hover:border-brand hover:text-ink hover:shadow-md"
+              >
+                x
+              </button>
+            </div>
+
+            <form className="mt-6 grid gap-4" onSubmit={handleResetSubmit}>
+              <label className="grid gap-2">
+                <span className={labelClass}>{t("email")}</span>
+                <input
+                  className={inputClass}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={resetEmail}
+                  onChange={(event) => {
+                    setResetEmail(event.target.value);
+                    setResetError("");
+                    setResetMessage("");
+                  }}
+                  disabled={resetSubmitting}
+                />
+              </label>
+
+              {resetError ? (
+                <p className="rounded-[12px] border border-danger/25 bg-danger/10 px-4 py-3 text-sm font-bold text-danger">{resetError}</p>
+              ) : null}
+
+              {resetMessage ? (
+                <p className="rounded-[12px] border border-positive/20 bg-positive/10 px-4 py-3 text-sm font-bold text-positive">{resetMessage}</p>
+              ) : null}
+
+              <div className="mt-2 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setResetModalOpen(false)}
+                  className="min-h-11 rounded-[12px] border border-line bg-card px-5 py-2.5 text-sm font-extrabold text-ink shadow-sm transition hover:-translate-y-px hover:border-brand hover:shadow-md"
+                >
+                  {t("cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetSubmitting}
+                  className="min-h-11 rounded-[12px] bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-deep hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {resetSubmitting ? t("loading") : t("sendResetLink")}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

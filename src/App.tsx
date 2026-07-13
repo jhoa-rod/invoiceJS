@@ -8,6 +8,7 @@ import { InvoiceDashboard } from "./components/invoices/InvoiceDashboard";
 import { InvoiceForm, type InvoiceErrors } from "./components/invoices/InvoiceForm";
 import { InvoicePreview } from "./components/invoices/InvoicePreview";
 import { LanguageSelector } from "./components/invoices/LanguageSelector";
+import { ResetPasswordView } from "./components/invoices/ResetPasswordView";
 import { ShareModal } from "./components/invoices/ShareModal";
 import { ConfirmModal } from "./components/ui/ConfirmModal";
 import { formatMessage, getDictionary, InvoiceI18nContext, type Language, type TranslationKey } from "./i18n/invoiceI18n";
@@ -152,6 +153,7 @@ function App() {
   const i18nValue = useMemo(() => ({ language, setLanguage, t }), [language, t]);
 
   const [hash, setHash] = useState(() => window.location.hash);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
   const sharedInvoice = useMemo(() => readSharedInvoiceFromHash(hash), [hash]);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -181,6 +183,12 @@ function App() {
     const handleHashChange = () => setHash(window.location.hash);
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    const handlePathChange = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", handlePathChange);
+    return () => window.removeEventListener("popstate", handlePathChange);
   }, []);
 
   useEffect(() => {
@@ -269,6 +277,7 @@ function App() {
   }, [toast]);
 
   const selectedInvoice = invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? invoices[0] ?? null;
+  const isResetPasswordPath = pathname.replace(/\/+$/, "") === "/reset-password";
   const userEmail = session?.user.email ?? "";
   const exportLabels = useMemo(() => getExportLabels(t), [t]);
   const navItems: Array<{ view: AppView; label: string }> = [
@@ -339,7 +348,7 @@ function App() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://app.invoicejs.com",
+        redirectTo: window.location.origin,
       },
     });
 
@@ -347,6 +356,24 @@ function App() {
       setAuthSubmitting(false);
       setAuthError(error.message || t("authGenericError"));
     }
+  };
+
+  const handlePasswordResetRequest = async (email: string) => {
+    if (!supabase) throw new Error(t("configurationHelp"));
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://app.invoicejs.com/reset-password",
+    });
+
+    if (error) throw new Error(error.message || t("authGenericError"));
+  };
+
+  const handleUpdatePassword = async (password: string) => {
+    if (!supabase) throw new Error(t("configurationHelp"));
+
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message || t("authGenericError"));
+    showToast(t("passwordUpdated"));
   };
 
   const handleLogout = async () => {
@@ -506,7 +533,17 @@ function App() {
 
   let content;
 
-  if (sharedInvoice) {
+  if (isResetPasswordPath) {
+    content = authLoading ? (
+      <div className="flex min-h-screen items-center justify-center bg-surface px-4 text-ink">
+        <div className="rounded-lg border border-line bg-card px-6 py-5 text-sm font-bold text-muted shadow-sm">
+          {t("loading")}
+        </div>
+      </div>
+    ) : (
+      <ResetPasswordView isConfigured={isSupabaseConfigured} onUpdatePassword={handleUpdatePassword} />
+    );
+  } else if (sharedInvoice) {
     content = (
       <div className="min-h-screen bg-surface text-ink">
         <header className="no-print border-b border-line bg-card/90 backdrop-blur">
@@ -557,6 +594,7 @@ function App() {
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
         onGoogleSignIn={handleGoogleSignIn}
+        onPasswordResetRequest={handlePasswordResetRequest}
       />
     );
   } else {
