@@ -58,7 +58,7 @@ export function useAuth(): UseAuthResult {
         await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: window.location.origin,
+            redirectTo: "https://app.invoicejs.com",
             queryParams: {
               prompt: "select_account",
             },
